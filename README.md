@@ -1,6 +1,4 @@
 # Graph3B
-<h1> Graph3B užduotis </h1>
-
 <h2> 2020-12-21 </h2>
 
 <h3> Camera 1: basic camera </h3>
