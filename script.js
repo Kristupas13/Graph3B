@@ -30,40 +30,51 @@
         // the mesh
         var latheMesh;
 
-        generatePoints(12);
+        generatePoints(30);
 
         // setup the control gui
         var controls = new function () {
             // we need the first child, since it's a multimaterial
 
-            this.segments = 12;
+            this.segments = 30;
             this.phiStart = 0;
             this.phiLength = 2 * Math.PI;
-			this.cameraFOV = 45;
-            
+            this.cameraFOV = 45;
+            this.dolly = 25;
+            this.dollyZoom = 200;
+
             this.redraw = function () {
                 scene.remove(spGroup);
-                scene.remove(latheMesh);
+                var king = scene.getObjectByName('king');
+                scene.remove(king);
                 generatePoints(controls.segments);
             };
 			
 			this.changeCameraFOV = function() {
 				camera.fov = controls.cameraFOV;
-				camera.updateProjectionMatrix();
+                camera.updateProjectionMatrix();
+                
+                if (cameraType == 'B')
+                    setCameraB();
+            }
+
+            this.cameraToDistance = function() {
+                setCameraB();
             }
         }
 
         var gui = new dat.GUI();
         gui.add(controls, 'segments', 0, 50).step(1).onChange(controls.redraw);
-		gui.add(controls, 'cameraFOV', 20, 150).step(1).onChange(controls.changeCameraFOV);
-
+        gui.add(controls, 'cameraFOV', 20, 150).step(1).onChange(controls.changeCameraFOV);
+        gui.add(controls, 'dollyZoom', 80, 600).step(1).onChange(controls.cameraToDistance);
+        
         render();
 
         function generatePoints(segments) {
             var pointsX = [
 		//1
 		//2
-		0, 8.6, 7.8, 7, 6.2, 5.5, 
+		0, 7.8, 7.4, 6.6, 5.8, 5.1, 
 		//3
 		4.7, 3.7, 4.9, 3.7, 3.7,
 		//4
@@ -116,15 +127,21 @@
             //var latheGeometry = new THREE.LatheGeometry(points, Math.ceil(segments), phiStart, phiLength);
             var latheGeometry = new THREE.LatheGeometry(points, Math.ceil(segments), 0, 2 * Math.PI);
             latheMesh = createMesh(latheGeometry);
-            var topKing = createTop(latheMesh);
+
+            if (segments >= 3)
+                var topKing = createTop(latheMesh);
 
             var kingas = new THREE.Group();
             kingas.add( latheMesh );
-            kingas.add( topKing );
-            kingas.name = 'king';
 
+            if (segments >= 3)
+                kingas.add( topKing );
+
+            kingas.name = 'king';
             scene.add(kingas);
-            
+            kingas.position.y += 14;
+            kingas.position.x -= 25;
+
             var floor = createFloor();
             scene.add(floor);
             
@@ -135,32 +152,61 @@
         function createMesh(geom) {
 
             // assign two materials
-              var meshMaterial = new THREE.MeshLambertMaterial({color:0x654321, transparent:false});
+              var meshMaterial = new THREE.MeshPhongMaterial({color:0x654321, transparent:false});
             //var meshMaterial = new THREE.MeshNormalMaterial();
             meshMaterial.side = THREE.DoubleSide;
             var wireFrameMat = new THREE.MeshBasicMaterial();
-            wireFrameMat.wireframe = true;
+            //wireFrameMat.wireframe = true;
 
             // create a multimaterial
             var mesh = THREE.SceneUtils.createMultiMaterialObject(geom, [meshMaterial, wireFrameMat]);
 
             return mesh;
         }
+        var timing = 0;
+        var goingFront = true;
 
         function render() {
             var king = scene.getObjectByName('king');
-            var hasCamObject = scene.getObjectByName('camObject');
-            if (!hasCamObject)
-                scene.add(camObject);
 
             if (cameraType == 'C') {
                 camera.position.x = camObject.position.x;
                 camera.position.y = camObject.position.y;
-                camera.position.z = camObject.position.z - 8;
+                camera.position.z = camObject.position.z - 9;
                 camera.lookAt(king.position);
-                scene.remove(camObject);
-            }
 
+                if (king.position.y >= 14) {
+                    goingFront = true;
+                    timing = 0;
+                }
+
+                if (king.position.y <= -160) 
+                    goingFront = false;
+                
+                if (move) {
+                    if (goingFront)
+                        king.position.y -= 0.2;
+                    else
+                        king.position.y += 0.2;
+                }
+
+
+
+                var difference = king.position.y - camera.position.y;
+
+                if (move) {
+                    if (difference < 16 && difference >= -15.3) {
+                        camera.rotation.z += timing;
+                        timing += 0.02;
+                    }
+                    else {
+                        camera.rotation.z = timing;
+                    }
+                }
+                 else {
+                    camera.rotation.z = timing;
+                }
+            }
 
             camObject.lookAt(king.position);
             camera.updateProjectionMatrix();
@@ -168,14 +214,7 @@
             stats.update();
 
             spGroup.rotation.x = step;
-            //latheMesh.rotation.x = step += 0.01;
 
-            // render using requestAnimationFrame
-            if (move) {
-                step += 0.02;
-                king.position.y = 14 * Math.cos(step);
-                king.position.z = 1 + 6 * Math.abs(Math.sin(step));
-            }
             webGLRenderer.render(scene, camera);
            // camera.lookAt(king.position);
             requestAnimationFrame(render);
@@ -198,8 +237,8 @@
 		
 		function createAndSetupCamera() {
 			var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0,100,50);
-            camera.lookAt(new THREE.Vector3(0, 0, 0));
+            camera.position.set(-35,400,200);
+            camera.lookAt(new THREE.Vector3(-35, 0, 0));
             camera.rotation.z = Math.PI;
 			return camera;
         }
@@ -218,15 +257,15 @@
         }
 
         function createTop(king) {
-            let geometry = new THREE.BoxGeometry( 1.5, 1.5, 13 );
-            let geometry2 = new THREE.BoxGeometry( 6, 1.5, 1.5 );
-            var material = new THREE.MeshLambertMaterial({color:0x654321, transparent:false});
-            
+            let geometry = new THREE.BoxGeometry( 2, 1.5, 9 );
+            let geometry2 = new THREE.BoxGeometry( 4, 1, 1 );
+            var material = new THREE.MeshPhongMaterial({color:0x654321, transparent:false});
+
             let cube1 = new THREE.Mesh( geometry, material );
             let cube2 = new THREE.Mesh( geometry2, material );
 
             cube1.position.set(king.position.x, king.position.y, king.position.z + 28);
-            cube2.position.set(king.position.x, king.position.y, king.position.z + 32);
+            cube2.position.set(king.position.x, king.position.y, king.position.z + 31);
             
 
             //create a group and add the two cubes
@@ -255,8 +294,9 @@
             var camObject = new THREE.Object3D();
             camObject.add(box);
             camObject.scale.set(0.3,0.3,0.3);
-            camObject.position.y = 0;
+            camObject.position.y = -60;
             camObject.position.z = 80;
+            camObject.position.x = -25;
             camObject.name = "camObject";
 
             return camObject;
@@ -264,30 +304,39 @@
 
         function setCameraA() {
             cameraType = 'A';
-            camera.position.set(0,100,50);
+            camera.near = 0.1;
+            camera.far = 1000;
+            camera.position.set(-35,400,200);
+            camera.lookAt(new THREE.Vector3(-35, 0, 0));
             controls.cameraFOV = 45;
             controls.changeCameraFOV();
-            camera.lookAt(new THREE.Vector3(0, 0, 0));
             camera.rotation.z = Math.PI;
 
             camera.updateProjectionMatrix();
         }
 
-        function setCameraB() {
-            cameraType = 'B';
-
-            cameraType = 'A';
-            camera.position.set(0,100,0);
-            controls.cameraFOV = 45;
-            controls.changeCameraFOV();
-            camera.lookAt(new THREE.Vector3(0, 0, 0));
-            camera.rotation.z = Math.PI;
-
-            camera.updateProjectionMatrix();
+        function resetKing() {
+            var king = scene.getObjectByName('king');
+            scene.remove(king);
+            generatePoints(controls.segments);
         }
+
 
         function setCameraC() {
             cameraType = 'C';
+        }
+
+        function setCameraB() {
+            var king = scene.getObjectByName('king');
+            const dollyZoom = controls.dollyZoom;
+            const fov = 2 * Math.atan(400 / (2 * ((dollyZoom+20)))) * (180 / Math.PI);
+            camera.fov = fov;
+            camera.position.y = -dollyZoom;
+            camera.position.x =  king.position.x;
+            camera.position.z = 18;
+            camera.lookAt(king.position);
+
+            camera.updateProjectionMatrix();
         }
 
         var cam1Btn = document.getElementById("cam1");
@@ -296,14 +345,18 @@
         var moveBtn = document.getElementById("move");
 
         cam1Btn.addEventListener("click", function() {
+            resetKing();
             setCameraA();
         });
 
         cam2Btn.addEventListener("click", function() {
+            resetKing();
+            setCameraA();
             setCameraB();
         });
 
         cam3Btn.addEventListener("click", function() {
+            resetKing();
             setCameraC();
         });
         
